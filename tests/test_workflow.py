@@ -33,3 +33,10 @@ def test_malformed_missing_buyer_data():
 
 def test_finalize():
     r=run_workflow(hero()); f=finalize(r,r["decision"]["recommended_supplier_id"]); assert f["status"]=="PROCUREMENT READY"; assert 0<f["confidence"]<=100
+
+def test_decision_explainability_metrics():
+    r=run_workflow(hero())
+    a=r["decision"]["analysis"]
+    assert a["additional_units_required"] >= 0
+    assert a["additional_inventory_exw_usd"] >= 0
+    assert a["quantity_exposure_pct"] >= 0
