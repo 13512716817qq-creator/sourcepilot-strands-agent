@@ -18,7 +18,9 @@ A chatbot waits for prompts. SourcePilot executes a workflow: requirements → R
 A Ghana buyer wants 8–12 women’s shoe designs, a small test order, limited budget and a reliable supplier. SourcePilot analyzes 16 synthetic suppliers, exposes risks and identifies a cost-vs-MOQ decision before producing a procurement-ready recommendation.
 
 ## Architecture
-See `docs/architecture.md` and `assets/architecture.svg`.
+![SourcePilot architecture](assets/architecture.svg)
+
+See `docs/architecture.md` for the Mermaid version and design rationale.
 
 ## Stack
 - Python
@@ -28,10 +30,10 @@ See `docs/architecture.md` and `assets/architecture.svg`.
 - Streamlit
 - Deterministic Python cost/risk/scoring tools
 - JSON synthetic supplier dataset
-- Pytest
+- Pytest + GitHub Actions
 
 ## Strands implementation
-`app/agents/strands_system.py` creates a Strands supervisor with explicit tools:
+`app/agents/strands_system.py` creates a supervisor with specialized agents for requirements, supplier discovery, quote normalization, risk, commercial analysis and recommendation. The supervisor also has explicit tools:
 - `search_suppliers`
 - `get_supplier_details`
 - `calculate_order_cost`
@@ -39,10 +41,12 @@ See `docs/architecture.md` and `assets/architecture.svg`.
 - `identify_risks`
 - `score_supplier`
 
-The language model is not trusted with arithmetic. Cost and procurement scoring are deterministic and auditable.
+`app/agents/agentic_workflow.py` bridges the stable procurement engine and the real Strands supervisor. The language model is not trusted with arithmetic: cost, risk thresholds and supplier scoring remain deterministic and auditable.
 
 ## Human in the loop
 SourcePilot does not make irreversible commercial commitments. When the cheapest quote creates materially higher MOQ exposure, material mismatch, or another meaningful trade-off, the UI enters **HUMAN DECISION REQUIRED** and waits for approval.
+
+The decision card explicitly shows *why* the human is being interrupted, including unit-price savings, extra units forced by MOQ and additional EXW inventory exposure.
 
 ## Run locally
 ```bash
@@ -52,18 +56,34 @@ pip install -r requirements.txt
 python run.py
 ```
 
-For the stable competition demo, the deterministic workflow works without AWS credentials. To invoke the real Strands/Bedrock supervisor, configure AWS credentials and use `app/agents/strands_system.py`.
+### Stable demo mode
+```bash
+export SOURCEPILOT_AGENT_MODE=demo
+python run.py
+```
+
+### Real Strands + Bedrock mode
+Configure AWS credentials, then:
+```bash
+export SOURCEPILOT_AGENT_MODE=strands
+export BEDROCK_MODEL_ID=<your-bedrock-model-id>
+python run.py
+```
+
+If Strands/Bedrock invocation is unavailable, SourcePilot preserves the deterministic workflow rather than breaking the demo.
 
 ## Tests
 ```bash
 pytest -q
 ```
 
+Current local result: **10 passed**. GitHub Actions runs the same deterministic workflow tests on every push.
+
 ## AgentCore
-Current AWS docs support deploying code-based Strands agents through the AgentCore CLI. This repository includes `app/agentcore_entry.py` for a BedrockAgentCoreApp entrypoint. Deployment is deliberately not claimed until it succeeds in the entrant's AWS account.
+This repository includes `app/agentcore_entry.py` using `BedrockAgentCoreApp`. Deployment is deliberately not claimed until it succeeds in the entrant's AWS account. See `docs/agentcore-deploy.md`.
 
 ## Demo-mode integrity
-`DEMO_MODE=true` means synthetic supplier data and deterministic outputs are used for stability. It does not invent functionality: the same procurement functions, risk rules and scoring logic execute.
+`SOURCEPILOT_AGENT_MODE=demo` uses the same supplier data, cost tools, risk rules, ranking logic and human-approval state as the live path while avoiding external model latency. It is a stability mode, not a fake result renderer.
 
 ## Privacy and limitations
 - No real customer identities or confidential quotations.
@@ -78,7 +98,7 @@ app/       UI, agents, tools, models
 data/      synthetic suppliers
 tests/     deterministic workflow tests
 docs/      rules, architecture, Devpost copy, video plan, audit
-assets/    architecture image
+assets/    architecture + static demo preview
 ```
 
 ## Roadmap
