@@ -1,14 +1,4 @@
 from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-# Streamlit executes this file as a script on Render, so explicitly add the
-# repository root to sys.path before importing the SourcePilot package.
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 import streamlit as st
 from app.agents.agentic_workflow import run_agentic_workflow, finalize
 
@@ -32,6 +22,7 @@ if go:
 
 if "result" in st.session_state:
     r=st.session_state.result
+    d=r["decision"]
     st.subheader("Agent Activity")
     st.caption(f"Agent engine: {r.get('agent_engine','Deterministic demo mode')}")
     if r.get("agent_error"): st.warning(r["agent_error"])
@@ -39,21 +30,60 @@ if "result" in st.session_state:
         with st.expander("Strands supervisor output",expanded=False): st.write(r["agent_output"])
     cols=st.columns(4)
     for i,step in enumerate(r["activity"]): cols[i%4].success("✓ "+step)
+
     req=r["requirements"]
     with st.expander("Procurement specification",expanded=True):
-        a,b,c=st.columns(3); a.metric("Destination",req["destination"]); b.metric("Styles",f"{req['styles_min']}–{req['styles_max']}"); c.metric("Test-order assumption",f"{req['order_quantity']} pairs")
-        if req["missing_critical"]: st.info("Missing buyer inputs: "+", ".join(req["missing_critical"])+". Safe assumptions are reversible and must be confirmed before commitment.")
-    st.subheader("Supplier Comparison")
+        a,b,c=st.columns(3)
+        a.metric("Destination",req["destination"])
+        b.metric("Styles",f"{req['styles_min']}–{req['styles_max']}")
+        c.metric("Test-order assumption",f"{req['order_quantity']} pairs")
+        if req["missing_critical"]:
+            st.info("Missing buyer inputs: "+", ".join(req["missing_critical"])+". Safe assumptions are reversible and must be confirmed before commitment.")
+
+    st.subheader("Decision-Relevant Supplier Comparison")
+    st.caption("Top-ranked recommendations are shown first. If the absolute cheapest supplier is excluded from the Top 3, SourcePilot still shows it here because it is relevant to the commercial decision.")
+
+    comparison=list(r["shortlist"])
+    cheapest_id=None
+    if d.get("required") and len(d.get("options",[]))>1:
+        cheapest_id=d["options"][1].get("supplier_id")
+        if cheapest_id and all(s["supplier_id"]!=cheapest_id for s in comparison):
+            cheapest=next((s for s in r["candidates"] if s["supplier_id"]==cheapest_id),None)
+            if cheapest:
+                comparison.append(cheapest)
+
     rows=[]
-    for s in r["shortlist"]:
-        rows.append({"Supplier":s["company_name"],"Location":s["location"],"EXW $/pair":s["exw_price"],"MOQ":s["moq"],"Lead time (d)":s["production_lead_time"],"Quality":s["quality_score"],"Reliability":s["historical_delivery_score"],"Score":s["scoring"]["score"],"Risk flags":len(s["computed_risks"])})
+    top3_ids={s["supplier_id"] for s in r["shortlist"]}
+    for s in comparison:
+        if s["supplier_id"]==d.get("recommended_supplier_id"):
+            status="Recommended"
+        elif s["supplier_id"]==cheapest_id and s["supplier_id"] not in top3_ids:
+            status="Cheapest alternative — excluded by MOQ"
+        elif s["supplier_id"]==cheapest_id:
+            status="Cheapest alternative"
+        else:
+            status="Top 3 alternative"
+        rows.append({
+            "Supplier":s["company_name"],
+            "Status":status,
+            "Location":s["location"],
+            "EXW $/pair":s["exw_price"],
+            "MOQ":s["moq"],
+            "Lead time (d)":s["production_lead_time"],
+            "Quality":s["quality_score"],
+            "Reliability":s["historical_delivery_score"],
+            "Score":s["scoring"]["score"],
+        })
     st.dataframe(rows,use_container_width=True,hide_index=True)
-    st.subheader("Risk Insights")
-    for s in r["shortlist"]:
-        if s["computed_risks"]:
+
+    flagged=[s for s in comparison if s["computed_risks"]]
+    if flagged:
+        st.subheader("Risk Insights")
+        for s in flagged:
             st.markdown(f"**{s['company_name']}**")
-            for risk in s["computed_risks"][:3]: st.warning(f"{risk['severity'].upper()}: {risk['reason']}")
-    d=r["decision"]
+            for risk in s["computed_risks"][:3]:
+                st.warning(f"{risk['severity'].upper()}: {risk['reason']}")
+
     if d["required"] and not st.session_state.get("final"):
         st.markdown(f"<div class='decision'><h3>⚠ HUMAN DECISION REQUIRED</h3><p>{d['reason']}</p></div>",unsafe_allow_html=True)
         a=d.get("analysis",{})
@@ -67,20 +97,25 @@ if "result" in st.session_state:
             st.caption("The model may explain the trade-off, but these quantities are calculated deterministically in Python.")
         opts=d["options"]
         b1,b2,b3=st.columns(3)
-        if b1.button(opts[0]["label"],type="primary",use_container_width=True): st.session_state.final=finalize(r,opts[0]["supplier_id"]); st.rerun()
-        if b2.button(opts[1]["label"],use_container_width=True): st.session_state.final=finalize(r,opts[1]["supplier_id"]); st.rerun()
-        if b3.button("Show alternatives",use_container_width=True): st.info("Alternatives are already ranked in the comparison table. Change the procurement strategy to re-rank deterministically.")
+        if b1.button(opts[0]["label"],type="primary",use_container_width=True):
+            st.session_state.final=finalize(r,opts[0]["supplier_id"]); st.rerun()
+        if b2.button(opts[1]["label"],use_container_width=True):
+            st.session_state.final=finalize(r,opts[1]["supplier_id"]); st.rerun()
+        if b3.button("Show alternatives",use_container_width=True):
+            st.info("The decision-relevant alternatives are shown in the table above. Change the procurement strategy to re-rank deterministically.")
     elif not d["required"] and not st.session_state.get("final"):
         st.session_state.final=finalize(r,d["recommended_supplier_id"])
 
 if st.session_state.get("final"):
-    f=st.session_state.final; s=f["selected_supplier"]
+    f=st.session_state.final
+    s=f["selected_supplier"]
     st.markdown("<div class='ready'><h2>✓ PROCUREMENT READY</h2></div>",unsafe_allow_html=True)
     m1,m2,m3,m4=st.columns(4)
     m1.metric("Suppliers analyzed",st.session_state.result["metrics"]["suppliers_analyzed"])
     m2.metric("Selected",s["company_name"])
     m3.metric("Est. order cost",f"${s['costs']['estimated_procurement_total_excl_duty_tax']:,.0f}")
     m4.metric("Confidence",f"{f['confidence']}%")
-    st.write(f["explanation"]); st.caption(f["verification_note"])
+    st.write(f["explanation"])
+    st.caption(f["verification_note"])
     proposal=f"""Buyer Proposal — Ghana Women's Footwear Test Order\n\nRecommended supplier: {s['company_name']} ({s['location']})\nRecommended test-order quantity: {s['modeled_order_quantity']} pairs\nEXW unit price: ${s['exw_price']:.2f}\nEstimated procurement total excluding duty/tax: ${s['costs']['estimated_procurement_total_excl_duty_tax']:,.2f}\nLead time: {s['production_lead_time']} days\n\nWhy this option: {f['explanation']}\n\nNext verification steps: confirm size distribution, final material/specification, sample approval, shipping quote, and supplier due diligence before any purchase commitment.\n\nSynthetic demonstration data."""
     st.download_button("Generate Buyer Proposal",proposal,file_name="sourcepilot-buyer-proposal.txt",mime="text/plain",type="primary")
