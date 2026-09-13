@@ -1,4 +1,14 @@
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Streamlit executes this file as a script on Render, so explicitly add the
+# repository root to sys.path before importing the SourcePilot package.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import streamlit as st
 from app.agents.agentic_workflow import run_agentic_workflow, finalize
 
