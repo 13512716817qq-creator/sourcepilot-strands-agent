@@ -1,0 +1,6 @@
+streamlit>=1.38
+strands-agents>=1.0
+strands-agents-tools>=0.2
+bedrock-agentcore>=0.1
+pydantic>=2.0
+pytest>=8.0
