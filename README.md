@@ -1,143 +1,46 @@
-# SourcePilot
+# FENIX OS — 手机版国际业务工作台
 
-**From Buyer Message to Evidence-Backed Procurement Decision.**
+专为手机设计的无依赖 Progressive Web App (PWA)，方便管理 Mirror Global Group 和其他项目。
 
-SourcePilot is an autonomous AI sourcing agent that turns an overseas buyer's messy product request into a decision-ready China procurement plan and only asks the human when a real business decision is required.
+## 已开发功能
 
-> Hackathon: AWS / Devpost **Agents for Humans** · Track: **Professional Agents**
->
-> SourcePilot now has two data modes: **Stable Demo** (synthetic, fully reproducible) and **Live Public Sources** (real public Alibaba.com / Made-in-China.com supplier and product source records with links, locations, listed prices, MOQ and contact paths).
+- 中文移动工作台 / 响应式设计
+- 客户 CRM：来源、国家、需求、跟进阶段与联系入口
+- 供应商资料库：产地、MOQ、报价、联系方式、核验状态
+- 多业务项目：国际贸易、牛油果、公司注册、加纳采购、韩国教育、泰国 TikTok 等
+- 任务管理：优先级、截止日、完成状态与项目归属
+- 报价及询盘：EXW / FOB / CIF / CFR / DAP，生成可复制英文报价摘要
+- 内容发布计划：社交平台、目标市场、文案与时间
+- 6 种英文商务沟通模板：采购询价、农场开发、供应商核验等
+- 本机浏览器 localStorage 保存数据；JSON 导出和导入
+- 安装到手机主屏幕需要稳定 HTTPS 站点；service worker 支持离线缓存
 
-## Why this problem
-International sourcing is not just “find me a factory.” A buyer may send a photo, approximate quantity, budget and destination. A sourcing professional then has to structure requirements, identify possible suppliers, verify where each data point came from, distinguish public listed prices from formal quotations, compare inconsistent offers, analyze MOQ, calculate cost, identify risk and explain trade-offs.
+## 隐私与限制
 
-SourcePilot turns that workflow into an agentic process.
+1. 源代码可以公开托管，但**用户新增的数据仅保存在所用浏览器本地**，不会自动上传到 GitHub。
+2. 不含账户登录、云同步、服务器加密、团队协作或推送提醒。请不要存储身份证件原件、银行卡信息或密码。
+3. 更换设备、清理网站数据、使用无痕模式可能造成数据丢失。推荐每周在“设置与备份”导出 JSON 并妥善保存。
+4. 已经内置的项目和待办是参考当前业务编排的**起始规划**，不是系统自动确认的客户、报价或已达成订单；客户/供应商/报价初始为空。
+5. 商务英文模板和报价只是草稿，不自动发送，不构成法律、报关、财税或正式技术结论。
+6. iOS 安装：使用 Safari 打开正式 HTTPS 网址 → 分享 → 添加到主屏幕。不是原生 App Store / IPA 安装包。
 
-## Why an agent, not a chatbot
-A chatbot waits for prompts. SourcePilot executes a workflow: requirements → supplier discovery → source evidence → RFQ → quote normalization → risk checks → deterministic cost analysis → transparent ranking → human approval gate → procurement plan.
+## 部署到 Cloudflare Pages (推荐)
 
-## Live Public Sources
-`app/live_discovery.py` adds a first evidence-backed sourcing layer using real public B2B marketplace records from:
+在 GitHub 中为本应用建立一个独立仓库，上传本目录的**所有文件及 icons 子目录**。
 
-- **Alibaba.com**
-- **Made-in-China.com**
+Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git → 选择仓库 → Build command 留空 → Output directory 设为根目录 `.`（如果平台要求，可把文件移到 `public/` 并设为 `public`）→ Deploy。
 
-The current V1 connector is intentionally conservative: it stores public-source snapshots in `data/live_supplier_sources.json` and preserves the exact product URL, supplier profile URL, public region/address when available, platform contact path, public listed price range, MOQ, verification evidence and source-check date.
+成功后用平台分配的 `*.pages.dev` HTTPS 网址访问。
+之后购买 `.com` 域名，在 Pages 自定义域名中绑定；配置 DNS 并验证 HTTPS。
 
-It **does not call a marketplace listed price a supplier quotation**. A formal quotation only exists after the supplier receives the buyer's actual RFQ and confirms quantity, specification, packaging, Incoterm and other commercial terms.
+> `raw.githack.com` 仅用于临时预览，不建议长期依赖作为企业生产环境。
 
-The Live Public Sources UI therefore lets a user:
+## 本地运行
 
-1. Search the connected evidence set.
-2. Compare real public supplier/product records.
-3. Open the original marketplace product page.
-4. Open the supplier profile.
-5. Follow the platform contact path.
-6. See the public address when the source publishes one; otherwise SourcePilot shows only the verified region rather than guessing.
-7. Generate an RFQ draft asking the supplier to confirm a current EXW quotation.
+在包含 `index.html` 的目录使用：
 
-Future connectors can replace snapshot refreshes with authorized marketplace APIs or compliant search/retrieval providers without changing the evidence schema.
-
-## Stable hero demo
-A Ghana buyer wants 8–12 women’s shoe designs, a small test order, limited budget and a reliable supplier. SourcePilot analyzes 16 synthetic supplier profiles, exposes risks and identifies a cost-vs-MOQ decision before producing a procurement-ready recommendation.
-
-The synthetic mode remains available because it is deterministic, reproducible and safe for a competition demo even if an external marketplace or model is unavailable.
-
-## Architecture
-![SourcePilot architecture](assets/architecture.svg)
-
-See `docs/architecture.md` for the Mermaid version and design rationale.
-
-## Stack
-- Python
-- **Strands Agents SDK**
-- Amazon Bedrock-compatible Strands model path
-- Amazon Bedrock AgentCore Runtime entrypoint (deployment requires AWS credentials)
-- Streamlit
-- Deterministic Python cost/risk/scoring tools
-- JSON synthetic supplier dataset
-- JSON real public-source evidence records
-- Pytest + GitHub Actions
-
-## Strands implementation
-`app/agents/strands_system.py` creates a supervisor with specialized agents for requirements, supplier discovery, quote normalization, risk, commercial analysis and recommendation. The supervisor also has explicit tools:
-- `search_suppliers`
-- `get_supplier_details`
-- `calculate_order_cost`
-- `calculate_landed_cost`
-- `identify_risks`
-- `score_supplier`
-
-`app/agents/agentic_workflow.py` bridges the stable procurement engine and the real Strands supervisor. The language model is not trusted with arithmetic: cost, risk thresholds and supplier scoring remain deterministic and auditable.
-
-## Human in the loop
-SourcePilot does not make irreversible commercial commitments. When the visible shortlist contains a meaningful price-vs-MOQ trade-off, the UI enters **HUMAN DECISION REQUIRED** and waits for approval.
-
-The decision card explicitly shows *why* the human is being interrupted, including unit-price savings, extra units forced by MOQ and additional EXW inventory exposure.
-
-## Run locally
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python run.py
+python3 -m http.server 8080
 ```
 
-### Stable demo mode
-```bash
-export SOURCEPILOT_AGENT_MODE=demo
-python run.py
-```
-
-### Real Strands + Bedrock mode
-Configure AWS credentials, then:
-```bash
-export SOURCEPILOT_AGENT_MODE=strands
-export BEDROCK_MODEL_ID=<your-bedrock-model-id>
-python run.py
-```
-
-If Strands/Bedrock invocation is unavailable, SourcePilot preserves the deterministic workflow rather than breaking the demo.
-
-## Tests
-```bash
-pytest -q
-```
-
-The test suite covers the deterministic procurement flow plus Live Public Sources provenance fields and RFQ generation. GitHub Actions runs tests on every push.
-
-## AgentCore
-This repository includes `app/agentcore_entry.py` using `BedrockAgentCoreApp`. Deployment is deliberately not claimed until it succeeds in the entrant's AWS account. See `docs/agentcore-deploy.md`.
-
-## Data integrity
-### Stable Demo
-Synthetic supplier profiles are clearly labelled synthetic. They are used to prove deterministic workflow logic and are never represented as real factories.
-
-### Live Public Sources
-Marketplace supplier/product records are real public-source evidence snapshots. SourcePilot preserves source URLs and check dates, but does not assert that a listing is current, that the supplier is suitable for a specific transaction, or that the displayed listed price is a formal quote. Users must verify all critical facts before purchase.
-
-## Privacy and limitations
-- No real customer identities or confidential quotations.
-- Public marketplace data is used only as source evidence in Live Public Sources mode.
-- Marketplace listed prices may change and can depend on SKU, quantity and customization.
-- Contact details hidden behind marketplace login are not scraped or bypassed; SourcePilot points users to the platform contact path.
-- Freight, customs duty/tax, certification and legal compliance require separate verification.
-- A human must verify critical commercial facts before purchase.
-
-## Repository layout
-```text
-app/       UI, agents, tools, models, live discovery
-data/      synthetic suppliers + public-source evidence snapshots
-tests/     deterministic workflow + live-source provenance tests
-docs/      rules, architecture, Devpost copy, video plan, audit
-assets/    architecture + static demo preview
-```
-
-## Roadmap
-Authorized marketplace APIs, compliant live-search connectors, quotation-PDF parsing, email/RFQ integration, freight APIs, supplier verification, collaborative procurement, supplier performance history, and purchase-order workflows.
-
-## AI assistance disclosure
-AI coding assistance was used to accelerate implementation, documentation and testing. Product concept, sourcing workflow, trade-off design and submission decisions remain the entrant's work.
-
-## License
-MIT.
+在电脑浏览器打开 http://localhost:8080。安装/离线功能需 HTTPS 或 localhost。
