@@ -12,6 +12,12 @@ if str(PROJECT_ROOT) not in sys.path:
 import streamlit as st
 from app.agents.agentic_workflow import run_agentic_workflow, finalize
 from app.live_discovery import discover_live_suppliers, build_rfq
+from app.paypal_sandbox import (
+    PayPalSandboxError,
+    capture_sandbox_order,
+    create_sandbox_order,
+    sandbox_credentials_configured,
+)
 
 st.set_page_config(page_title="SourcePilot", page_icon="🧭", layout="wide")
 st.markdown(
@@ -321,3 +327,65 @@ Synthetic demonstration data only. This is not a live supplier quote or supplier
         mime="text/plain",
         type="primary",
     )
+
+
+    st.divider()
+    with st.expander("PayPal Sandbox Checkout · Hackathon Demo", expanded=False):
+        st.caption(
+            "Sandbox-only payment demonstration. This does not transfer real money and is not a payment to a real supplier. "
+            "The procurement supplier shown above is synthetic demo data."
+        )
+        if not sandbox_credentials_configured():
+            st.info(
+                "To enable checkout, configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET "
+                "from a PayPal Developer Sandbox app in the runtime environment. Never put these secrets in GitHub."
+            )
+        else:
+            demo_amount = st.number_input(
+                "Sandbox demonstration amount (USD)",
+                min_value=1.0,
+                max_value=1000.0,
+                value=10.0,
+                step=1.0,
+                format="%.2f",
+                key="paypal_sandbox_demo_amount",
+            )
+            if st.button("Create PayPal Sandbox Order", type="primary", key="paypal_sandbox_create"):
+                try:
+                    created_order = create_sandbox_order(
+                        demo_amount,
+                        description=f"SourcePilot sandbox demo payment - {s['company_name']}",
+                        reference_id=f"SP-DEMO-{s.get('supplier_id', 'SUPPLIER')}",
+                    )
+                    st.session_state.paypal_sandbox_order = created_order
+                    st.session_state.paypal_sandbox_capture = None
+                except PayPalSandboxError as exc:
+                    st.error(str(exc))
+
+            current_order = st.session_state.get("paypal_sandbox_order")
+            if current_order:
+                st.write("Sandbox order ID: " + current_order["id"])
+                st.link_button(
+                    "Approve test payment in PayPal Sandbox",
+                    current_order["approve_url"],
+                    use_container_width=True,
+                )
+                order_to_capture = st.text_input(
+                    "Order ID (capture only after approving the test payment)",
+                    value=current_order["id"],
+                    key="paypal_sandbox_capture_order_id",
+                )
+                if st.button("Capture approved Sandbox payment", key="paypal_sandbox_capture"):
+                    try:
+                        st.session_state.paypal_sandbox_capture = capture_sandbox_order(order_to_capture)
+                    except PayPalSandboxError as exc:
+                        st.error(str(exc))
+
+            capture_result = st.session_state.get("paypal_sandbox_capture")
+            if capture_result:
+                capture_status = capture_result.get("status", "UNKNOWN")
+                if capture_status == "COMPLETED":
+                    st.success("PayPal Sandbox payment captured successfully.")
+                else:
+                    st.info(f"PayPal Sandbox response status: {capture_status}")
+                st.json(capture_result)
