@@ -3,4 +3,5 @@ strands-agents>=1.0
 strands-agents-tools>=0.2
 bedrock-agentcore>=0.1
 pydantic>=2.0
+requests>=2.31
 pytest>=8.0
