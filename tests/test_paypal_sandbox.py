@@ -64,7 +64,7 @@ def test_create_sandbox_order_returns_approval_link(monkeypatch):
     order_call = session.calls[1]
     assert order_call[0] == f"{PAYPAL_SANDBOX_API}/v2/checkout/orders"
     assert order_call[1]["json"]["purchase_units"][0]["amount"]["value"] == "10.00"
-    assert order_call[1]["json"]["application_context"]["return_url"].endswith("paypal=return")
+    assert order_call[1]["json"]["payment_source"]["paypal"]["experience_context"]["return_url"].endswith("paypal=return")
 
 
 def test_capture_sandbox_order(monkeypatch):
