@@ -70,6 +70,12 @@ See `docs/architecture.md` for the Mermaid version and design rationale.
 
 `app/agents/agentic_workflow.py` bridges the stable procurement engine and the real Strands supervisor. The language model is not trusted with arithmetic: cost, risk thresholds and supplier scoring remain deterministic and auditable.
 
+## PayPal Sandbox Checkout
+
+The prototype includes a PayPal Orders v2 integration for a controlled Sandbox checkout demonstration. After the procurement workflow produces a recommendation, a user can explicitly create a test order, approve it with a PayPal Sandbox buyer account, and capture it. The integration is hard-coded to PayPal's Sandbox API and does not process live payments. The displayed supplier profiles in the Stable Demo remain synthetic; the Sandbox payment is not a real supplier payment.
+
+Configure `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from a PayPal Developer Sandbox app in the runtime environment. Optionally set `SOURCEPILOT_PUBLIC_URL` to the deployed app URL so the PayPal return and cancel paths point back to SourcePilot. Never commit credentials. See `docs/paypal-ai-hackathon.md` for setup and demo instructions.
+
 ## Human in the loop
 SourcePilot does not make irreversible commercial commitments. When the visible shortlist contains a meaningful price-vs-MOQ trade-off, the UI enters **HUMAN DECISION REQUIRED** and waits for approval.
 
