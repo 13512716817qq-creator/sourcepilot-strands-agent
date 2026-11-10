@@ -110,13 +110,17 @@ def create_sandbox_order(
                 "amount": {"currency_code": currency_code, "value": formatted_amount},
             }
         ],
-        "application_context": {
-            "brand_name": "SourcePilot",
-            "landing_page": "NO_PREFERENCE",
-            "user_action": "PAY_NOW",
-            "shipping_preference": "NO_SHIPPING",
-            "return_url": success_url,
-            "cancel_url": failure_url,
+        "payment_source": {
+            "paypal": {
+                "experience_context": {
+                    "brand_name": "SourcePilot",
+                    "landing_page": "NO_PREFERENCE",
+                    "user_action": "PAY_NOW",
+                    "shipping_preference": "NO_SHIPPING",
+                    "return_url": success_url,
+                    "cancel_url": failure_url,
+                }
+            }
         },
     }
     response = client.post(
